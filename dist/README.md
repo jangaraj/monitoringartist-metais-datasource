@@ -1,3 +1,7 @@
+# POC datasource for https://metais.finance.gov.sk/monitoras
+
+![POC dashboard](https://raw.githubusercontent.com/jangaraj/simple-json-datasource/master/poc_metasis.png)
+
 ## Simple JSON Datasource - a generic backend datasource
 
 More documentation about datasource plugins can be found in the [Docs](https://github.com/grafana/grafana/blob/master/docs/sources/plugins/datasources.md).
@@ -6,62 +10,14 @@ This also serves as a living example implementation of a datasource.
 
 Your backend needs to implement 4 urls:
 
- * `/` should return 200 ok. Used for "Test connection" on the datasource config page.
- * `/search` used by the find metric options on the query tab in panels.
- * `/query` should return metrics based on input.
- * `/annotations` should return annotations.
+ * / should return 200 ok. Used for "Test connection" on the datasource config page.
+ * /search used by the find metric options on the query tab in panels.
+ * /query should return metrics based on input.
+ * /annotations should return annotations.
 
 ### Example backend implementations
 - https://github.com/bergquist/fake-simple-json-datasource
-
-### Query API
-
-Example request
-``` javascript
-{
-  "panelId": 1,
-  "range": {
-    "from": "2016-10-31T06:33:44.866Z",
-    "to": "2016-10-31T12:33:44.866Z",
-    "raw": {
-      "from": "now-6h",
-      "to": "now"
-    }
-  },
-  "rangeRaw": {
-    "from": "now-6h",
-    "to": "now"
-  },
-  "interval": "30s",
-  "intervalMs": 30000,
-  "targets": [
-     { "target": "upper_50", refId: "A" },
-     { "target": "upper_75", refId: "B" }
-  ],
-  "format": "json",
-  "maxDataPoints": 550
-}
-```
-
-Example response
-``` javascript
-[
-  {
-    "target":"upper_75", // The field being queried for
-    "datapoints":[
-      [622,1450754160000],  // Metric value as a float , unixtimestamp in milliseconds
-      [365,1450754220000]
-    ]
-  },
-  {
-    "target":"upper_90",
-    "datapoints":[
-      [861,1450754160000],
-      [767,1450754220000]
-    ]
-  }
-]
-```
+- https://gist.github.com/tral/1fe649455fe2de9fb8fe
 
 ### Annotation API
 
@@ -111,38 +67,6 @@ Access-Control-Allow-Headers:accept, content-type
 Access-Control-Allow-Methods:POST
 Access-Control-Allow-Origin:*
 ```
-
-### Search API
-
-Example request
-``` javascript
-{ target: 'upper_50' }
-```
-
-The search api can either return an array or map.
-
-Example array response
-``` javascript
-["upper_25","upper_50","upper_75","upper_90","upper_95"]
-```
-
-Example map response
-``` javascript
-[ { "text" :"upper_25", "value": 1}, { "text" :"upper_75", "value": 2} ]
-```
-
-### Changelog
-
-1.2.4
- - Add support returning sets in the search endpoint
-
-1.2.3
- - Allow nested templates in find metric query. #23
-
-1.2.2
- - Dont execute hidden queries
- - Template support for metrics queries
- - Template support for annotation queries
 
 ### If using Grafana 2.6
 NOTE!

@@ -1,4 +1,5 @@
 import _ from "lodash";
+import moment from 'moment';
 
 export class GenericDatasource {
 
@@ -11,6 +12,7 @@ export class GenericDatasource {
     this.templateSrv = templateSrv;
   }
 
+  // Called once per panel (graph)
   query(options) {
     var query = this.buildQueryParameters(options);
     query.targets = query.targets.filter(t => !t.hide);
@@ -18,15 +20,40 @@ export class GenericDatasource {
     if (query.targets.length <= 0) {
       return this.q.when({data: []});
     }
+    var timeFrom = query.range.from._d.toISOString().slice(0,10);
+    var timeTo = query.range.to._d.toISOString().slice(0,10);
 
-    return this.backendSrv.datasourceRequest({
-      url: this.url + '/query',
-      data: query,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
+    var promises = _.map(options.targets, target => {
+      target = _.cloneDeep(target);
+      var options = {
+       url: this.url + '/monitoring/param-value/list?entityRef=' + target['target'] + '&parameterTypeId=18&intervalStart=' + timeFrom + '&intervalEnd=' + timeTo + '&sortAttr=intervalStart&sortAsc=true&perPageSize=100000',
+        data: query,
+        method: 'GET',
+      };
+      return this.backendSrv.datasourceRequest(options).then(function(result) {
+        var datapoints = []
+        _.each(result.data['results'], function(item) {
+          datapoints.push([parseInt(item["value"]), parseInt(moment(item["monitoredInterval"]["end"]).format('x'))])
+        });
+        return [{"target":target['target'],"datapoints":datapoints}];
+      });
+
     });
+
+    // Data for panel (all targets)
+    return this.q.all(_.flatten(promises))
+      .then(_.flatten)
+      .then(timeseries_data => {
+
+        var data = _.map(timeseries_data, timeseries => {
+          return timeseries;
+        });
+        return { data: data };
+      });
   }
 
+  // Required
+  // Used for testing datasource in datasource configuration pange
   testDatasource() {
     return this.backendSrv.datasourceRequest({
       url: this.url + '/',
@@ -61,26 +88,20 @@ export class GenericDatasource {
     });
   }
 
+  // Optional
+  // Required for templating
   metricFindQuery(options) {
-    var target = typeof (options) === "string" ? options : options.target;
-    var interpolated = {
-        target: this.templateSrv.replace(target, null, 'regex')
-    };
-
     return this.backendSrv.datasourceRequest({
-      url: this.url + '/search',
-      data: interpolated,
+      url: this.url + '/cmdb/read/cilistfiltered',
+      data: '{"page":1,"perPage":9999,"sortBy":"createdAt","sortType":"DESC","filter":{"type":["AS"],"metaAttributes":{"state":["DRAFT"]},"relTypeFilters":[{"relType":"ISVS_realizuje_AS","relCiUuids":["56fb4575-7034-41c8-bf51-c4c97c50bcf4"]}],"searchFields":["Gen_Profil_nazov","Gen_Profil_kod_metais"],"fullTextSearch":"' + options.target + '"}}',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     }).then(this.mapToTextValue);
   }
 
   mapToTextValue(result) {
-    return _.map(result.data, (d, i) => {
-      if (d && d.text && d.value) {
-        return { text: d.text, value: d.value };
-      }
-      return { text: d, value: i };
+    return _.map(result.data["configurationItemSet"], (i) => {
+      return { text: i.attributes.find( x => x.name === 'Gen_Profil_nazov').value, value: i.uuid};
     });
   }
 
@@ -94,8 +115,7 @@ export class GenericDatasource {
       return {
         target: this.templateSrv.replace(target.target),
         refId: target.refId,
-        hide: target.hide,
-        type: target.type || 'timeserie'
+        hide: target.hide
       };
     });
 
